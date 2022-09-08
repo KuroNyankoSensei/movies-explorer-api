@@ -1,9 +1,8 @@
 const MODE_DEV = 'development';
-const MONGO_URL = 'mongodb://localhost:27017/bitfilmsdb';
+const MONGO_URL = 'mongodb://localhost:27017/moviesdb';
 const LOCAL_PORT = 3000;
 const JWT_KEY = 'secret-key';
 
-const STATUS_OK = 200;
 const STATUS_CREATED = 201;
 
 const ERROR_BAD_REQUEST = 400;
@@ -21,7 +20,6 @@ const ERRMSG_VALIDATION = 'Ошибка валидации данных';
 const ERRMSG_NO_PASSWORD = 'Пароль не указан';
 const ERRMSG_BAD_PASSWORD = 'Пароль не должен быть короче 8 символов';
 
-const ERRMSG_NO_DATA = 'Нужны имя, почта и пароль';
 const ERRMSG_BAD_DATA = 'Неправильные почта или пароль';
 
 const ERRMSG_EMAIL_EXISTS = 'Такая учетная запись уже существует:';
@@ -41,7 +39,6 @@ module.exports = {
   MONGO_URL,
   LOCAL_PORT,
   JWT_KEY,
-  STATUS_OK,
   STATUS_CREATED,
 
   ERROR_BAD_REQUEST,
@@ -59,7 +56,6 @@ module.exports = {
   ERRMSG_NO_PASSWORD,
   ERRMSG_BAD_PASSWORD,
 
-  ERRMSG_NO_DATA,
   ERRMSG_BAD_DATA,
 
   ERRMSG_NO_USER,

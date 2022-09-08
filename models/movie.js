@@ -43,7 +43,7 @@ const MovieSchema = new mongoose.Schema({
       message: `${ERRMSG_BAD_FORMAT} URL`,
     },
   },
-  trailer: {
+  trailerLink: {
     type: String,
     required: true,
     validate: {

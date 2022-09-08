@@ -1,25 +1,25 @@
-const Movie = require('../models/movie.js');
+const Movie = require('../models/movie');
 const BadRequestError = require('../errors/bad-request-err');
 const NotFoundError = require('../errors/not-found-err');
 const ForbiddenError = require('../errors/forbidden-err');
 const ConflictError = require('../errors/conflict-err');
 
 const {
-  STATUS_OK, STATUS_CREATED, ERRMSG_NO_FILM, ERRMSG_FILM_EXISTS, ERRMSG_DELETE,
+  STATUS_CREATED, ERRMSG_NO_FILM, ERRMSG_FILM_EXISTS, ERRMSG_DELETE,
 } = require('../utils/constants');
 
 module.exports.getMovies = (req, res, next) => {
   const owner = req.user._id;
 
   Movie.find({ owner })
-    .then((data) => res.status(STATUS_OK).send(data))
+    .then((data) => res.send(data))
     .catch(next);
 };
 
 module.exports.createMovie = async (req, res, next) => {
   const {
     movieId, country, director, duration, year, description,
-    image, trailer, nameRU, nameEN, thumbnail,
+    image, trailerLink, nameRU, nameEN, thumbnail,
   } = req.body;
 
   try {
@@ -37,7 +37,7 @@ module.exports.createMovie = async (req, res, next) => {
       year,
       description,
       image,
-      trailer,
+      trailerLink,
       nameRU,
       nameEN,
       thumbnail,
@@ -63,11 +63,11 @@ module.exports.deleteMovie = (req, res, next) => {
       if (!film) {
         throw new NotFoundError(ERRMSG_NO_FILM);
       }
-      if (JSON.stringify(film.owner) !== JSON.stringify(req.user._id)) {
+      if (film.owner.toString() !== req.user._id.toString()) {
         throw new ForbiddenError(ERRMSG_DELETE);
       }
-      return Movie.findByIdAndRemove(movieId);
+      return film.remove().then(() => res.send({ message: film }));
     })
-    .then((film) => res.status(STATUS_OK).send(film))
+    .then((film) => res.send(film))
     .catch(next);
 };

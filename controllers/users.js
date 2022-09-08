@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/user.js');
+const User = require('../models/user');
 
 const NotFoundError = require('../errors/not-found-err');
 const BadRequestError = require('../errors/bad-request-err');
@@ -9,38 +9,29 @@ const UnauthorizedError = require('../errors/unauthorized-err');
 
 const { JWT_CODE } = require('../config');
 const {
-  STATUS_OK, STATUS_CREATED, ERRMSG_NO_DATA, ERRMSG_BAD_DATA, ERRMSG_NO_USER, ERRMSG_EMAIL_EXISTS,
+  ERRMSG_BAD_DATA, ERRMSG_NO_USER, ERRMSG_EMAIL_EXISTS,
 } = require('../utils/constants');
 
 // ----------------------------------------------------------------------------
 // Создание учетной записи нового пользователя
-
 module.exports.createUser = (req, res, next) => {
-  const { email, password, name } = req.body;
-
-  if (!email || !password || !name) {
-    throw new BadRequestError(ERRMSG_NO_DATA);
-  }
-
-  User.findOne({ email })
-    .then((user) => {
-      if (user) {
-        throw new ConflictError(`${ERRMSG_EMAIL_EXISTS} ${email}`);
-      }
-      return bcrypt.hash(password, 10);
-    })
-    .then((hash) => User.create({ email, password: hash, name }))
-    .then((user) => res
-      .status(STATUS_CREATED)
-      .send({ _id: user._id, email: user.email }))
-    .catch((err) => {
-      if (err.name.includes('ValidationError')) {
-        const errMessage = Object.values(err.errors).map((errItem) => errItem.message).join(', ');
-        next(new BadRequestError(errMessage.trim()));
-      } else {
-        next(err);
-      }
-    });
+  const { name, email, password } = req.body;
+  bcrypt.hash(password, 10)
+    .then((hash) => {
+      User.create({ name, email, password: hash })
+        .then((user) => {
+          res.send({ name, email, _id: user._id });
+        })
+        .catch((err) => {
+          if (err.name === 'ValidationError') {
+            return next(new BadRequestError('Переданы некорректные данные при создании пользователя.'));
+          }
+          if (err.code === 11000) {
+            return next(new ConflictError('Данный email уже зарегистрирован.'));
+          }
+          return next(err);
+        });
+    }).catch(next);
 };
 
 // ----------------------------------------------------------------------------
@@ -71,7 +62,7 @@ module.exports.getCurrentUser = (req, res, next) => {
         throw new NotFoundError(ERRMSG_NO_USER);
       }
       const data = { _id: user._id, email: user.email, name: user.name };
-      res.status(STATUS_OK).send(data);
+      res.send(data);
     })
     .catch(next);
 };
@@ -84,7 +75,7 @@ module.exports.updateProfile = async (req, res, next) => {
 
   try {
     // Проверяем, не занят ли данный email
-    const data = await User.find({ email });
+    const data = await User.findOne({ email });
 
     if (data.length === 1) {
       if (data[0]._id.toString() !== req.user._id) {
@@ -100,7 +91,7 @@ module.exports.updateProfile = async (req, res, next) => {
 
     const updatedData = { _id: user._id, email: user.email, name: user.name };
 
-    res.status(STATUS_OK).send(updatedData);
+    res.send(updatedData);
   } catch (err) {
     if (err.name.includes('ValidationError')) {
       const errMessage = Object.values(err.errors).map((errItem) => errItem.message).join(', ');
