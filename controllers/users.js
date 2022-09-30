@@ -1,19 +1,14 @@
+require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+
+const { NODE_ENV, JWT_SECRET } = process.env;
 const User = require('../models/user');
+const NotFoundError = require('../errors/NotFound');
+const BadRequest = require('../errors/BadRequest');
+const Conflict = require('../errors/Conflict');
 
-const NotFoundError = require('../errors/not-found-err');
-const BadRequestError = require('../errors/bad-request-err');
-const ConflictError = require('../errors/conflict-err');
-const UnauthorizedError = require('../errors/unauthorized-err');
-
-const { JWT_CODE } = require('../config');
-const {
-  ERRMSG_BAD_DATA, ERRMSG_NO_USER, ERRMSG_EMAIL_EXISTS,
-} = require('../utils/constants');
-
-// ----------------------------------------------------------------------------
-// Создание учетной записи нового пользователя
+// Создание пользователя
 module.exports.createUser = (req, res, next) => {
   const { name, email, password } = req.body;
   bcrypt.hash(password, 10)
@@ -24,80 +19,63 @@ module.exports.createUser = (req, res, next) => {
         })
         .catch((err) => {
           if (err.name === 'ValidationError') {
-            return next(new BadRequestError('Переданы некорректные данные при создании пользователя.'));
+            return next(new BadRequest('Переданы некорректные данные при создании пользователя.'));
           }
           if (err.code === 11000) {
-            return next(new ConflictError('Данный email уже зарегистрирован.'));
+            return next(new Conflict('Данный email уже зарегистрирован.'));
           }
           return next(err);
         });
     }).catch(next);
 };
 
-// ----------------------------------------------------------------------------
-// Вход в систему
-
+// Логин пользователя
 module.exports.login = (req, res, next) => {
   const { email, password } = req.body;
 
-  return User.findUserByCredentials(email, password)
+  return User.findByCredentials(email, password)
     .then((user) => {
-      res.send({
-        token: jwt.sign({ _id: user._id }, JWT_CODE, { expiresIn: '7d' }),
-      });
-    })
-    .catch(() => {
-      throw new UnauthorizedError(ERRMSG_BAD_DATA);
+      const token = jwt.sign(
+        { _id: user._id },
+        NODE_ENV === 'production' ? JWT_SECRET : 'secretnyiy-secret',
+        { expiresIn: '7d' },
+      );
+
+      res.send({ token });
     })
     .catch(next);
 };
 
-// ----------------------------------------------------------------------------
-// Возвращает информацию о пользователе (email и имя)
+// Получение данных о пользователе
+module.exports.getUserInfo = (req, res, next) => {
+  User.findById(req.user._id)
+    .then((user) => {
+      res.send({ name: user.name, email: user.email, _id: user._id });
+    })
+    .catch(next);
+};
 
-module.exports.getCurrentUser = (req, res, next) => {
-  User.findById(req.user._id).select('+password')
+// Обновляем данные пользователя (имя, почта)
+module.exports.updateUserInfo = (req, res, next) => {
+  const { name, email } = req.body;
+  User.findByIdAndUpdate(
+    { id: req.user._id },
+    { name, email },
+    { new: true, runValidators: true, upsert: false },
+  )
     .then((user) => {
       if (!user) {
-        throw new NotFoundError(ERRMSG_NO_USER);
+        throw new NotFoundError('Данного пользователя не существует');
       }
-      const data = { _id: user._id, email: user.email, name: user.name };
-      res.send(data);
+      res.send({ name: user.name, email: user.email, _id: user._id });
     })
-    .catch(next);
-};
-
-// ----------------------------------------------------------------------------
-// Oбновляет информацию о пользователе (email и имя)
-
-module.exports.updateProfile = async (req, res, next) => {
-  const { name, email } = req.body;
-
-  try {
-    // Проверяем, не занят ли данный email
-    const data = await User.findOne({ email });
-
-    if (data.length === 1) {
-      if (data[0]._id.toString() !== req.user._id) {
-        throw new ConflictError(`${ERRMSG_EMAIL_EXISTS} ${email}`);
+    .catch((err) => {
+      if (err.name === 'ValidationError') {
+        return next(new BadRequest('Переданы некорректные данные при обновлении профиля.'));
       }
-    }
-
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { name, email },
-      { new: true, runValidators: true, upsert: true },
-    );
-
-    const updatedData = { _id: user._id, email: user.email, name: user.name };
-
-    res.send(updatedData);
-  } catch (err) {
-    if (err.name.includes('ValidationError')) {
-      const errMessage = Object.values(err.errors).map((errItem) => errItem.message).join(', ');
-      next(new BadRequestError(errMessage.trim()));
-    } else {
-      next(err);
-    }
-  }
+      if (err.code === 11000) {
+        return next(new Conflict('Данный email уже зарегистрирован.'));
+      }
+      return next(err);
+    });
 };

@@ -1,20 +1,17 @@
 const mongoose = require('mongoose');
+const validator = require('validator');
 const bcrypt = require('bcryptjs');
-const isEmail = require('validator/lib/isEmail');
-
-const BadRequestError = require('../errors/bad-request-err');
-const {
-  ERRMSG_BAD_DATA, ERRMSG_EMPTY_FIELD, ERRMSG_BAD_FORMAT, ERRMSG_MAX_LENGTH, ERRMSG_MIN_LENGTH,
-} = require('../utils/constants');
+const Unauthorized = require('../errors/Unauthorized');
 
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
+    required: true,
     unique: true,
-    required: [true, `${ERRMSG_EMPTY_FIELD} email`],
     validate: {
-      validator: (v) => isEmail(v),
-      message: `${ERRMSG_BAD_FORMAT} email`,
+      validator(email) {
+        return validator.isEmail(email);
+      },
     },
   },
   password: {
@@ -24,25 +21,25 @@ const userSchema = new mongoose.Schema({
   },
   name: {
     type: String,
-    required: [true, `${ERRMSG_EMPTY_FIELD} name`],
-    minlength: [2, `${ERRMSG_MIN_LENGTH} name: 2`],
-    maxlength: [30, `${ERRMSG_MAX_LENGTH} name: 30`],
+    required: true,
+    minlength: 2,
+    maxlength: 30,
   },
 });
 
-userSchema.statics.findUserByCredentials = function findUserByCredentials(email, password) {
+// Собственный метод для проверки почты и пароля
+// eslint-disable-next-line func-names
+userSchema.statics.findByCredentials = function (email, password) {
   return this.findOne({ email }).select('+password')
     .then((user) => {
       if (!user) {
-        return Promise.reject(new BadRequestError(ERRMSG_BAD_DATA));
+        return Promise.reject(new Unauthorized('Неверные данные входа'));
       }
-
       return bcrypt.compare(password, user.password)
-        .then((matched) => {
-          if (!matched) {
-            return Promise.reject(new BadRequestError(ERRMSG_BAD_DATA));
+        .then((mathed) => {
+          if (!mathed) {
+            return Promise.reject(new Unauthorized('Неверные данные входа'));
           }
-
           return user;
         });
     });
