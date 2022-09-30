@@ -1,73 +1,58 @@
 const Movie = require('../models/movie');
-const BadRequestError = require('../errors/bad-request-err');
-const NotFoundError = require('../errors/not-found-err');
-const ForbiddenError = require('../errors/forbidden-err');
-const ConflictError = require('../errors/conflict-err');
+const NotFound = require('../errors/NotFound');
+const BadRequest = require('../errors/BadRequest');
+const Forbidden = require('../errors/Forbidden');
 
-const {
-  STATUS_CREATED, ERRMSG_NO_FILM, ERRMSG_FILM_EXISTS, ERRMSG_DELETE,
-} = require('../utils/constants');
-
+// Получаем все сохраненные пользователем фильмы
 module.exports.getMovies = (req, res, next) => {
-  const owner = req.user._id;
+  const userId = req.user._id;
 
-  Movie.find({ owner })
-    .then((data) => res.send(data))
+  Movie.find({ owner: userId })
+    .then((movies) => {
+      if (movies.length === 0) {
+        res.send('Ничего не найдено');
+      }
+      res.send(movies);
+    })
     .catch(next);
 };
 
-module.exports.createMovie = async (req, res, next) => {
-  const {
-    movieId, country, director, duration, year, description,
-    image, trailerLink, nameRU, nameEN, thumbnail,
-  } = req.body;
+// Создаем фильм
+module.exports.createMovie = (req, res, next) => {
+  const userId = req.user._id;
 
-  try {
-    const data = await Movie.find({ movieId });
-
-    if (data.length > 0) {
-      throw new ConflictError(`${ERRMSG_FILM_EXISTS} ${movieId}`);
-    }
-
-    const film = await Movie.create({
-      movieId,
-      country,
-      director,
-      duration,
-      year,
-      description,
-      image,
-      trailerLink,
-      nameRU,
-      nameEN,
-      thumbnail,
-      owner: req.user._id,
+  Movie.create({ owner: userId, ...req.body })
+    .then((movie) => {
+      res.send(movie);
+    })
+    .catch((err) => {
+      if (err.name === 'ValidationError') {
+        return next(new BadRequest('Переданы некорректные данные при создании карточки.'));
+      }
+      return next(err);
     });
-
-    res.status(STATUS_CREATED).send(film);
-  } catch (err) {
-    if (err.name.includes('ValidationError')) {
-      const errMessage = Object.values(err.errors).map((errItem) => errItem.message).join(', ');
-      next(new BadRequestError(errMessage.trim()));
-    } else {
-      next(err);
-    }
-  }
 };
 
+// Удаляем сохраненный фильм по id
 module.exports.deleteMovie = (req, res, next) => {
+  const userId = req.user._id;
   const { movieId } = req.params;
 
   Movie.findById(movieId)
-    .then((film) => {
-      if (!film) {
-        throw new NotFoundError(ERRMSG_NO_FILM);
+    .orFail(() => new NotFound('Указанный фильм не найден'))
+    .then((movie) => {
+      if (String(movie.owner) !== userId) {
+        throw new Forbidden('Удаление данного фильма невозможно');
       }
-      if (film.owner.toString() !== req.user._id.toString()) {
-        throw new ForbiddenError(ERRMSG_DELETE);
-      }
-      return film.remove().then(() => res.send({ message: film }));
+      return movie.remove()
+        .then(() => {
+          res.send(movie);
+        });
     })
-    .then((film) => res.send(film))
-    .catch(next);
+    .catch((err) => {
+      if (err.name === 'ValidationError' || err.name === 'CastError') {
+        return next(new BadRequest('Переданы некорректные данные для постановки лайка.'));
+      }
+      return next(err);
+    });
 };

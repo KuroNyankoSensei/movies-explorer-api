@@ -1,14 +1,6 @@
 const mongoose = require('mongoose');
-const isURL = require('validator/lib/isURL');
 
-const { ERRMSG_BAD_FORMAT } = require('../utils/constants');
-
-const MovieSchema = new mongoose.Schema({
-  movieId: {
-    type: Number,
-    unique: true,
-    required: true,
-  },
+const movieSchema = mongoose.Schema({
   country: {
     type: String,
     required: true,
@@ -24,12 +16,6 @@ const MovieSchema = new mongoose.Schema({
   year: {
     type: String,
     required: true,
-    validate: {
-      validator(v) {
-        return /\d{4}/gi.test(v);
-      },
-      message: `${ERRMSG_BAD_FORMAT} год`,
-    },
   },
   description: {
     type: String,
@@ -39,29 +25,39 @@ const MovieSchema = new mongoose.Schema({
     type: String,
     required: true,
     validate: {
-      validator: (v) => isURL(v),
-      message: `${ERRMSG_BAD_FORMAT} URL`,
+      validator(link) {
+        return /^(https?:\/\/)?([\w-]{1,32}\.[\w-]{1,32})[^\s@]*/.test(link);
+      },
+      message: 'Некорректная ссылка',
     },
   },
   trailerLink: {
     type: String,
     required: true,
     validate: {
-      validator: (v) => isURL(v),
-      message: `${ERRMSG_BAD_FORMAT} URL`,
+      validator(link) {
+        return /^(https?:\/\/)?([\w-]{1,32}\.[\w-]{1,32})[^\s@]*/.test(link);
+      },
+      message: 'Некорректная ссылка',
     },
   },
   thumbnail: {
     type: String,
     required: true,
     validate: {
-      validator: (v) => isURL(v),
-      message: `${ERRMSG_BAD_FORMAT} URL`,
+      validator(link) {
+        return /^(https?:\/\/)?([\w-]{1,32}\.[\w-]{1,32})[^\s@]*/.test(link);
+      },
+      message: 'Некорректная ссылка',
     },
   },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'user',
+    required: true,
+  },
+  movieId: {
+    type: Number,
     required: true,
   },
   nameRU: {
@@ -74,4 +70,4 @@ const MovieSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model('movie', MovieSchema);
+module.exports = mongoose.model('movie', movieSchema);
